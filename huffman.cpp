@@ -1,9 +1,32 @@
 #include "huffman.h"
 
-Huffman::Huffman(QObject *parent) :
-    QObject(parent)
+Huffman::Huffman(QThread *parent) :
+    QThread(parent)
 {
+    for(int k=0;k<256;k++)
+    {
+        for(int mask=128;mask>0;mask/=2)
+        {
+            if((k&mask)==0) dic[k].append("0");
+            else dic[k].append("1");
+        }
+    }
 }
+void Huffman::run()
+{
+    if(isCompress)
+    {
+        this->ComAnalyse();
+        this->GenerateCompressFile();
+        emit message("Compress Complete!");
+    }
+    else
+    {
+        this->DecomAnalyse();
+        emit message("Decompress complete!");
+    }
+}
+
 void Huffman::Compress(QString comFile, QString after)
 {
     if(comFile==after)
@@ -14,9 +37,9 @@ void Huffman::Compress(QString comFile, QString after)
     inFile.setFileName(comFile);
     outFile.setFileName(after);
     if(!CheckFile()) return;
-    this->ComAnalyse();
-    this->GenerateCompressFile();
-    emit message("Compress Complete!");
+    isCompress=true;
+    this->start();
+
 }
 void Huffman::Decompress(QString decomFile, QString after)
 {
@@ -28,8 +51,8 @@ void Huffman::Decompress(QString decomFile, QString after)
     inFile.setFileName(decomFile);
     outFile.setFileName(after);
     if(!CheckFile()) return;
-    this->DecomAnalyse();
-    emit message("Decompress complete!");
+    isCompress=false;
+    this->start();
 }
 
 bool Huffman::CheckFile()
@@ -50,17 +73,20 @@ void Huffman::ComAnalyse()
     statisticMap.clear();
     char c;
     inFile.open(QIODevice::ReadOnly);
+    emit message("Analysing File!");
     while(!inFile.atEnd())
     {
         inFile.getChar(&c);
         if(statisticMap.contains(c)) statisticMap[c]++;
         else statisticMap[c]=0;
     }
+    emit message("Generating Huffman Tree!");
     tree.Generate(statisticMap,codeMap);
     inFile.close();
 }
 void Huffman::GenerateCompressFile()
 {
+    emit message("Generating compressed file!");
     outFile.open(QIODevice::WriteOnly);
     QByteArray header,content;
     char c;
@@ -81,8 +107,7 @@ void Huffman::GenerateCompressFile()
     for(it=codeMap.begin();it!=codeMap.end();it++)
     {
         header.append(it.key());
-        header.append(it.value());
-        header.append(';');
+        header.append(this->formatCodeMap(it.value()));
     }
     outFile.write(header);
     bool ok;
@@ -91,10 +116,25 @@ void Huffman::GenerateCompressFile()
     for(int i=0;i<content.size();i=i+8)
     {
         after.append((char)content.mid(i,8).toInt(&ok,2));
+        emit progress((i*100)/content.size());
     }
+    emit progress(100);
     outFile.write(after);
     inFile.close();
     outFile.close();
+}
+QByteArray Huffman::formatCodeMap(QString s)
+{
+    int l=s.size();
+    QByteArray r;
+    r.append((char)l);
+    while(s.size()%8!=0) s.append("0");
+    bool ok;
+    for(int i=0;i<s.size();i=i+8)
+    {
+        r.append((char)s.mid(i,8).toInt(&ok,2));
+    }
+    return r;
 }
 
 void Huffman::DecomAnalyse()
@@ -107,29 +147,30 @@ void Huffman::DecomAnalyse()
     int mapSize=content[1]&0x000000ff;
     if(mapSize==0) mapSize=256;
     decodeMap.clear();
-    int i,j;
-    decodeLength=0;
+    int i,decodeLength;
+    maxDecodeLength=0;
+    char key;
+    QString value;
+    emit message("Generating decoding map!");
     for(i=2;mapSize>0;mapSize--)
     {
-        j=content.indexOf(";",i+1);
-        decodeMap[QString(content.mid(i+1,j-i-1))]=content[i];
-        if(decodeLength<j-i-1) decodeLength=j-i-1;
-        i=j+1;
+        key=content[i];
+        decodeLength=content[i+1]&0xff;
+        if(maxDecodeLength<decodeLength) maxDecodeLength=decodeLength;
+        value.clear();
+        for(i=i+2;decodeLength>0;decodeLength-=8,i++)
+        {
+            value+=dic[(content[i]&0xff)];
+        }
+        value=value.mid(0,value.size()+decodeLength);
+        decodeMap[value]=key;
     }
     this->GenerateDecompressFile(content.mid(i),zero);
 }
 void Huffman::GenerateDecompressFile(QByteArray content,int zero)
 {
+    emit message("Generating decompressed file!");
     QString after;
-    QString dic[256];
-    for(int k=0;k<256;k++)
-    {
-        for(int mask=128;mask>0;mask/=2)
-        {
-            if((k&mask)==0) dic[k].append("0");
-            else dic[k].append("1");
-        }
-    }
     int index;
     outFile.open(QIODevice::WriteOnly);
     QByteArray out;
@@ -139,7 +180,7 @@ void Huffman::GenerateDecompressFile(QByteArray content,int zero)
         after.append(dic[index]);
         if(after.size()>100)
         {
-            while(after.size()>decodeLength+1)
+            while(after.size()>maxDecodeLength+1)
             {
                 for(int i=1;i<after.size();i++)
                 {
@@ -157,6 +198,7 @@ void Huffman::GenerateDecompressFile(QByteArray content,int zero)
                 }
             }
         }
+        if(i%1000==0) emit progress((i*100)/content.size());
     }
     after=after.mid(0,after.size()-zero);
     for(int i=1;i<=after.size();i++)
@@ -168,6 +210,7 @@ void Huffman::GenerateDecompressFile(QByteArray content,int zero)
             i=0;
         }
     }
+    emit progress(100);
     outFile.write(out);
     outFile.close();
 }

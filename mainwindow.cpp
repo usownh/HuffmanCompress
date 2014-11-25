@@ -6,9 +6,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    ui->progressBar->setVisible(false);
     connect(&huffman,SIGNAL(message(QString)),this,SLOT(message(QString)));
     connect(&huffman,SIGNAL(error(QString)),this,SLOT(error(QString)));
-
+    connect(&huffman,SIGNAL(progress(int)),ui->progressBar,SLOT(setValue(int)));
 }
 
 MainWindow::~MainWindow()
@@ -48,6 +49,8 @@ void MainWindow::on_pushButton_Compress_clicked()
     if(check())
     {
         this->message("start to Compress!");
+        ui->progressBar->setVisible(true);
+        ui->progressBar->setValue(0);
         huffman.Compress(ui->label_FilePath->text(),ui->lineEdit->text());
     }
 }
@@ -57,6 +60,8 @@ void MainWindow::on_pushButton_Decompress_clicked()
     if(check())
     {
         this->message("start to Decompress!");
+        ui->progressBar->setVisible(true);
+        ui->progressBar->setValue(0);
         huffman.Decompress(ui->label_FilePath->text(),ui->lineEdit->text());
     }
 }
