@@ -6,6 +6,9 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <huffman.h>
+#include <QFile>
+#include <QCryptographicHash>
+
 namespace Ui {
 class MainWindow;
 }
@@ -25,6 +28,8 @@ private slots:
     void message(QString);
     void error(QString);
     void on_pushButton_Save_clicked();
+    void on_checkBox_clicked(bool checked);
+
 private:
     bool check();
     Ui::MainWindow *ui;

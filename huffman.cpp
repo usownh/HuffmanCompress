@@ -11,6 +11,8 @@ Huffman::Huffman(QThread *parent) :
             else dic[k].append("1");
         }
     }
+    CompressHeader=QByteArray::fromHex("ff00ff00");
+    EncryptHeader=QByteArray::fromHex("ff00ff01");
 }
 void Huffman::run()
 {
@@ -23,17 +25,18 @@ void Huffman::run()
     else
     {
         this->DecomAnalyse();
-        emit message("Decompress complete!");
     }
 }
 
-void Huffman::Compress(QString comFile, QString after)
+void Huffman::Compress(QString comFile, QString after, QString passWord, bool needPass)
 {
     if(comFile==after)
     {
         emit error("The input file name and the output file name cann't be the same!");
         return;
     }
+    this->passWord=passWord;
+    this->needPass=needPass;
     inFile.setFileName(comFile);
     outFile.setFileName(after);
     if(!CheckFile()) return;
@@ -41,13 +44,14 @@ void Huffman::Compress(QString comFile, QString after)
     this->start();
 
 }
-void Huffman::Decompress(QString decomFile, QString after)
+void Huffman::Decompress(QString decomFile, QString after, QString passWord)
 {
     if(decomFile==after)
     {
         emit error("The input file name and the output file name cann't be the same!");
         return;
     }
+    this->passWord=passWord;
     inFile.setFileName(decomFile);
     outFile.setFileName(after);
     if(!CheckFile()) return;
@@ -68,6 +72,16 @@ bool Huffman::CheckFile()
     }
     return true;
 }
+
+void Huffman::EncryptOrDecrypt(QByteArray &content,QByteArray &pass,int &posOfPass)
+{
+    for(int i=0;i<content.size();i++,posOfPass++)
+    {
+        posOfPass=posOfPass%pass.size();
+        content[i]=content[i]^pass[posOfPass];
+    }
+}
+
 void Huffman::ComAnalyse()
 {
     statisticMap.clear();
@@ -89,6 +103,15 @@ void Huffman::GenerateCompressFile()
     emit message("Generating compressed file!");
     outFile.open(QIODevice::WriteOnly);
     QByteArray header,content;
+    QByteArray pass=passWord.toLocal8Bit();
+    if(needPass)
+    {
+        header.append(EncryptHeader);
+        header.append(QCryptographicHash::hash(pass,QCryptographicHash::Md5));
+    }
+    else    header.append(CompressHeader);
+    outFile.write(header);
+    header.clear();
     char c;
     int mapSize=codeMap.size();
     int zero=0;
@@ -109,6 +132,8 @@ void Huffman::GenerateCompressFile()
         header.append(it.key());
         header.append(this->formatCodeMap(it.value()));
     }
+    int passPos=0;
+    if(needPass) this->EncryptOrDecrypt(header,pass,passPos);
     outFile.write(header);
     bool ok;
     QByteArray after;
@@ -119,6 +144,7 @@ void Huffman::GenerateCompressFile()
         emit progress((i*100)/content.size());
     }
     emit progress(100);
+    if(needPass) this->EncryptOrDecrypt(after,pass,passPos);
     outFile.write(after);
     inFile.close();
     outFile.close();
@@ -140,9 +166,31 @@ QByteArray Huffman::formatCodeMap(QString s)
 void Huffman::DecomAnalyse()
 {
     QByteArray content;
+    QByteArray pass=passWord.toLocal8Bit();
     inFile.open(QIODevice::ReadOnly);
     content=inFile.readAll();
     inFile.close();
+    if(content.startsWith(CompressHeader)) content.remove(0,4);
+    else if(content.startsWith(EncryptHeader))
+    {
+        content.remove(0,4);
+        if(content.mid(0,16)==QCryptographicHash::hash(pass,QCryptographicHash::Md5))
+        {
+            content.remove(0,16);
+            int pos=0;
+            this->EncryptOrDecrypt(content,pass,pos);
+        }
+        else
+        {
+            emit error("wrong password!");
+            return;
+        }
+    }
+    else
+    {
+        emit error("file error!");
+        return;
+    }
     int zero=content[0]&0x000000ff;
     int mapSize=content[1]&0x000000ff;
     if(mapSize==0) mapSize=256;
@@ -166,6 +214,7 @@ void Huffman::DecomAnalyse()
         decodeMap[value]=key;
     }
     this->GenerateDecompressFile(content.mid(i),zero);
+    emit message("Decompress complete!");
 }
 void Huffman::GenerateDecompressFile(QByteArray content,int zero)
 {
