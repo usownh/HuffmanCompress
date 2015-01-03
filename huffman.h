@@ -30,19 +30,19 @@ private:
     void GenerateCompressFile();
     void GenerateDecompressFile(QByteArray content, int zero);
     void EncryptOrDecrypt(QByteArray &content, QByteArray &pass, int &posOfPass);
-    QByteArray formatCodeMap(QString s);
+    bool TryToDecode(QByteArray &in, int &start, int length, QByteArray &out);
+    QByteArray formatCodeMap(QByteArray s);
     QFile inFile,outFile;
     QMap <char,int> statisticMap;
-    QMap <char,QString> codeMap;
-    QMap <QString,char> decodeMap;
+    QMap <char,QByteArray> codeMap;
+    QMap <QByteArray,char> decodeMap;
     HuffTree tree;
-    int maxDecodeLength;
-    QString dic[256];
     bool isCompress;
     QByteArray CompressHeader;
     QByteArray EncryptHeader;
     QString passWord;
     bool needPass;
+    int mask[8];
 };
 
 #endif // HUFFMAN_H

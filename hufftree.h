@@ -15,10 +15,10 @@ class HuffTree
 {
 public:
     HuffTree();
-    void Generate(QMap<char,int> &map, QMap<char, QString> &codeMap);
+    void Generate(QMap<char,int> &map, QMap<char, QByteArray> &codeMap);
 private:
     Node* FindMin(QList<Node *> &list);
-    void GenerateCode(Node *node,QString s,QMap<char,QString> &codeMap);
+    void GenerateCode(Node *node, QByteArray s, QMap<char, QByteArray> &codeMap);
 };
 
 #endif // HUFFTREE_H

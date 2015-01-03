@@ -3,14 +3,13 @@
 Huffman::Huffman(QThread *parent) :
     QThread(parent)
 {
-    for(int k=0;k<256;k++)
-    {
-        for(int mask=128;mask>0;mask/=2)
-        {
-            if((k&mask)==0) dic[k].append("0");
-            else dic[k].append("1");
-        }
-    }//initial dict. It's easy to decode.
+    mask[1]=0x80;
+    mask[2]=0xc0;
+    mask[3]=0xe0;
+    mask[4]=0xf0;
+    mask[5]=0xf8;
+    mask[6]=0xfc;
+    mask[7]=0xfe;
     CompressHeader=QByteArray::fromHex("ff00ff00");
     EncryptHeader=QByteArray::fromHex("ff00ff01");
 }
@@ -126,7 +125,7 @@ void Huffman::GenerateCompressFile()
     for(int i=0;i<zero;i++) content.append("0");
     header.append((char)zero);
     header.append((char)mapSize);
-    QMap<char,QString>::iterator it;
+    QMap<char,QByteArray>::iterator it;
     for(it=codeMap.begin();it!=codeMap.end();it++)
     {
         header.append(it.key());
@@ -149,7 +148,7 @@ void Huffman::GenerateCompressFile()
     inFile.close();
     outFile.close();
 }
-QByteArray Huffman::formatCodeMap(QString s)
+QByteArray Huffman::formatCodeMap(QByteArray s)
 {
     //format::key.length.huffmancode
     // bytes:: 1    1        -
@@ -198,21 +197,18 @@ void Huffman::DecomAnalyse()
     if(mapSize==0) mapSize=256;
     decodeMap.clear();
     int i,decodeLength;
-    maxDecodeLength=0;
     char key;
-    QString value;
+    QByteArray value;
     emit message("Generating decoding map!");
     for(i=2;mapSize>0;mapSize--)
     {//read decode map
         key=content[i];
         decodeLength=content[i+1]&0xff;
-        if(maxDecodeLength<decodeLength) maxDecodeLength=decodeLength;
         value.clear();
-        for(i=i+2;decodeLength>0;decodeLength-=8,i++)
-        {
-            value+=dic[(content[i]&0xff)];
-        }
-        value=value.mid(0,value.size()+decodeLength);
+        int j=(decodeLength+7)/8;
+        j++;
+        value=content.mid(i+1,j);
+        i=i+j+1;
         decodeMap[value]=key;
     }
     this->GenerateDecompressFile(content.mid(i),zero);
@@ -221,47 +217,83 @@ void Huffman::DecomAnalyse()
 void Huffman::GenerateDecompressFile(QByteArray content,int zero)
 {
     emit message("Generating decompressed file!");
-    QString after;
-    int index;
     outFile.open(QIODevice::WriteOnly);
     QByteArray out;
-    for(int i=0;i<content.size();i++)
+    int start=0,i=0;
+    int size=content.size();
+    while(true)
     {
-        index=content[i]&0x000000ff;
-        after.append(dic[index]);
-        if(after.size()>100)
+        if(content.size()==1&&start==8-zero) break;
+        else if(content.size()==0) break;
+        for(int j=1;!this->TryToDecode(content,start,j,out);j++);
+        if(i%1000==0)
         {
-            while(after.size()>maxDecodeLength+1)
-            {
-                for(int i=1;i<after.size();i++)
-                {
-                    if(decodeMap.contains(after.mid(0,i)))
-                    {
-                        out.append(decodeMap[after.mid(0,i)]);
-                        if(out.size()>1000)
-                        {
-                            outFile.write(out);
-                            out.clear();
-                        }
-                        after.remove(0,i);
-                        break;
-                    }
-                }
-            }
+            emit progress((size-content.size())*100/size);
+            outFile.write(out);
+            out.clear();
         }
-        if(i%1000==0) emit progress((i*100)/content.size());
-    }
-    after=after.mid(0,after.size()-zero);
-    for(int i=1;i<=after.size();i++)
-    {
-        if(decodeMap.contains(after.mid(0,i)))
-        {
-            out.append(decodeMap[after.mid(0,i)]);
-            after.remove(0,i);
-            i=0;
-        }
+        i++;
     }
     emit progress(100);
     outFile.write(out);
     outFile.close();
+}
+bool Huffman::TryToDecode(QByteArray &in,int &start,int length,QByteArray &out)
+{
+    QByteArray tmp;
+    tmp.append((char)length);
+    char t;
+    int i=0;
+    if(start>0)
+        while(true)
+        {
+            if(length+start>8)
+            {
+                t=in[i]<<start;
+                t+=(in[i+1]&mask[start])>>(8-start);
+                if(length<8) t=t&mask[length];
+                tmp.append(t);
+                length-=8;
+                i++;
+            }
+            else
+            {
+                if(length<=0)break;
+                t=in[i]<<start;
+                t=t&mask[length];
+                tmp.append(t);
+                if(length+start==8) i++;
+                break;
+            }
+
+        }
+    else
+    {
+        while(true)
+        {
+            if(length>=8)
+            {
+                t=in[i];
+                tmp.append(t);
+                length-=8;
+                i++;
+            }
+            else
+            {
+                if(length==0) break;
+                t=in[i];
+                t=t&mask[length];
+                tmp.append(t);
+                break;
+            }
+        }
+    }
+    if(decodeMap.contains(tmp))
+    {
+        out.append(decodeMap[tmp]);
+        start=(start+length+8)%8;
+        in.remove(0,i);
+        return true;
+    }
+    else return false;
 }

@@ -4,7 +4,7 @@ HuffTree::HuffTree()
 {
 }
 
-void HuffTree::Generate(QMap<char, int> &map,QMap<char,QString> &codeMap)
+void HuffTree::Generate(QMap<char, int> &map, QMap<char, QByteArray> &codeMap)
 {
     QMap<char,int>::Iterator it;
     QList<Node *> list;
@@ -32,7 +32,7 @@ void HuffTree::Generate(QMap<char, int> &map,QMap<char,QString> &codeMap)
     codeMap.clear();
     this->GenerateCode(node,"",codeMap);
 }
-void HuffTree::GenerateCode(Node *node,QString s, QMap<char, QString> &codeMap)
+void HuffTree::GenerateCode(Node *node, QByteArray s, QMap<char, QByteArray> &codeMap)
 {
     if(node->left==0)
     {
