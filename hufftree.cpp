@@ -10,26 +10,23 @@ void HuffTree::Generate(QMap<char, int> &map,QMap<char,QString> &codeMap)
     QList<Node *> list;
     Node * node;
     for(it=map.begin();it!=map.end();it++)
-    {
+    {//initial all nodes with statistics info
         node=new Node();
         node->left=0;
         node->right=0;
-        node->parent=0;
         node->count=it.value();
         node->c=it.key();
         list.append(node);
     }
     Node *min1,*min2;
     while(list.size()>1)
-    {
+    {//combine two minest nodes into one tree
         min1=this->FindMin(list);
         min2=this->FindMin(list);
         node =new Node();
         node->left=min1;
         node->right=min2;
-        node->parent=0;
         node->count=min1->count+min2->count;
-        min1->parent=min2->parent=node;
         list.append(node);
     }
     codeMap.clear();

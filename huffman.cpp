@@ -10,12 +10,12 @@ Huffman::Huffman(QThread *parent) :
             if((k&mask)==0) dic[k].append("0");
             else dic[k].append("1");
         }
-    }
+    }//initial dict. It's easy to decode.
     CompressHeader=QByteArray::fromHex("ff00ff00");
     EncryptHeader=QByteArray::fromHex("ff00ff01");
 }
 void Huffman::run()
-{
+{//compress or decompress in another thread
     if(isCompress)
     {
         this->ComAnalyse();
@@ -74,7 +74,7 @@ bool Huffman::CheckFile()
 }
 
 void Huffman::EncryptOrDecrypt(QByteArray &content,QByteArray &pass,int &posOfPass)
-{
+{//content XOR password
     for(int i=0;i<content.size();i++,posOfPass++)
     {
         posOfPass=posOfPass%pass.size();
@@ -89,7 +89,7 @@ void Huffman::ComAnalyse()
     inFile.open(QIODevice::ReadOnly);
     emit message("Analysing File!");
     while(!inFile.atEnd())
-    {
+    {//statistics
         inFile.getChar(&c);
         if(statisticMap.contains(c)) statisticMap[c]++;
         else statisticMap[c]=0;
@@ -117,7 +117,7 @@ void Huffman::GenerateCompressFile()
     int zero=0;
     inFile.open(QIODevice::ReadOnly);
     while(!inFile.atEnd())
-    {
+    {//code content with huffman code
         inFile.getChar(&c);
         content.append(codeMap[c]);
     }
@@ -139,7 +139,7 @@ void Huffman::GenerateCompressFile()
     QByteArray after;
     after.clear();
     for(int i=0;i<content.size();i=i+8)
-    {
+    {//transfer string to binary file
         after.append((char)content.mid(i,8).toInt(&ok,2));
         emit progress((i*100)/content.size());
     }
@@ -151,6 +151,8 @@ void Huffman::GenerateCompressFile()
 }
 QByteArray Huffman::formatCodeMap(QString s)
 {
+    //format::key.length.huffmancode
+    // bytes:: 1    1        -
     int l=s.size();
     QByteArray r;
     r.append((char)l);
@@ -201,7 +203,7 @@ void Huffman::DecomAnalyse()
     QString value;
     emit message("Generating decoding map!");
     for(i=2;mapSize>0;mapSize--)
-    {
+    {//read decode map
         key=content[i];
         decodeLength=content[i+1]&0xff;
         if(maxDecodeLength<decodeLength) maxDecodeLength=decodeLength;

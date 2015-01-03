@@ -7,10 +7,9 @@ struct  Node
 {
     Node *left;
     Node *right;
-    Node *parent;
-    int count;
-    char c;
-};
+    int count;  //huffman key value
+    char c;     //huffman key. Only leaf node is valid.
+};//node to construct binary tree.
 
 class HuffTree
 {
