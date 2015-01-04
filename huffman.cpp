@@ -204,12 +204,17 @@ void Huffman::DecomAnalyse()
     {//read decode map
         key=content[i];
         decodeLength=content[i+1]&0xff;
+        while(decodeMap.length()<=decodeLength) decodeMap.append(new QMap <QByteArray,char> ());
         value.clear();
         int j=(decodeLength+7)/8;
-        j++;
-        value=content.mid(i+1,j);
-        i=i+j+1;
-        decodeMap[value]=key;
+        value=content.mid(i+2,j);
+        i=i+j+2;
+        decodeMap.at(decodeLength)->insert(value,key);
+    }
+    for(int i=0;i<decodeMap.size();i++)
+    {
+        if(decodeMap[i]->size()==0) decodeBitMap.push_back(0);
+        else decodeBitMap.push_back(1);
     }
     this->GenerateDecompressFile(content.mid(i),zero);
     emit message("Decompress complete!");
@@ -241,7 +246,9 @@ void Huffman::GenerateDecompressFile(QByteArray content,int zero)
 bool Huffman::TryToDecode(QByteArray &in,int &start,int length,QByteArray &out)
 {
     QByteArray tmp;
-    tmp.append((char)length);
+    if(length>=decodeBitMap.size()) return false;
+    if(decodeBitMap[length]==0) return false;
+    int index=length;
     char t;
     int i=0;
     if(start>0)
@@ -288,9 +295,9 @@ bool Huffman::TryToDecode(QByteArray &in,int &start,int length,QByteArray &out)
             }
         }
     }
-    if(decodeMap.contains(tmp))
+    if(decodeMap[index]->contains(tmp))
     {
-        out.append(decodeMap[tmp]);
+        out.append(decodeMap[index]->value(tmp));
         start=(start+length+8)%8;
         in.remove(0,i);
         return true;

@@ -7,6 +7,7 @@
 #include <QCryptographicHash>
 #include <QInputDialog>
 #include <hufftree.h>
+#include <QVector>
 #include <QDebug>
 class Huffman : public QThread
 {
@@ -35,7 +36,8 @@ private:
     QFile inFile,outFile;
     QMap <char,int> statisticMap;
     QMap <char,QByteArray> codeMap;
-    QMap <QByteArray,char> decodeMap;
+    QVector<QMap <QByteArray,char> *> decodeMap;
+    QVector<int> decodeBitMap;
     HuffTree tree;
     bool isCompress;
     QByteArray CompressHeader;
